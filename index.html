@@ -240,7 +240,10 @@ html{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
 body{margin:0}
 .cam{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
 .cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.cam .guide{position:absolute;left:8%;right:8%;top:30%;bottom:30%;border:3px solid rgba(255,255,255,.85);border-radius:14px;box-shadow:0 0 0 2000px rgba(0,0,0,.28);transition:border-color .15s}
+.cam .guide{position:absolute;left:5%;right:5%;top:41%;height:18%;border:3px solid rgba(255,255,255,.85);border-radius:12px;box-shadow:0 0 0 2000px rgba(0,0,0,.32);transition:border-color .15s}
+.cam .laser{position:absolute;left:4%;right:4%;top:50%;height:3px;margin-top:-1px;background:#ff2a2a;box-shadow:0 0 8px 2px rgba(255,40,40,.85);border-radius:2px;animation:lz 1.1s ease-in-out infinite}
+@keyframes lz{50%{opacity:.45}}
+.cam .guide.hit .laser{background:#5fd08f;box-shadow:0 0 10px 3px rgba(95,208,143,.9);animation:none}
 .cam .guide.hit{border-color:#5fd08f;box-shadow:0 0 0 2000px rgba(27,116,67,.35)}
 .cam .guide.miss{border-color:#f0b450}
 .cam-top,.cam-bot{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));background:rgba(20,32,48,.82);color:#fff}
@@ -473,7 +476,7 @@ body{margin:0}
 <!-- ===================== LIVE CAMERA ===================== -->
 <div id="cam" class="cam" hidden role="dialog" aria-modal="true" aria-label="Live camera scanning">
   <video id="camVideo" playsinline muted autoplay></video>
-  <div class="guide" id="camGuide" aria-hidden="true"></div>
+  <div class="guide" id="camGuide" aria-hidden="true"><div class="laser"></div></div>
   <div class="cam-top">
     <div><b id="cCount" class="num">0</b><span id="cCountLbl">Boxes</span></div>
     <div><b id="cTotal" class="num">0.00</b><span>Net lb</span></div>
@@ -481,8 +484,8 @@ body{margin:0}
   </div>
   <div class="cam-bot">
     <div class="cam-msg" id="camMsg">Point at the label barcode</div>
-    <div class="cam-sub" id="camSub">Hold steady about 6–10 inches away. It beeps when a box is added.</div>
-    <div class="cam-row"><button class="btn" id="torchBtn" type="button" hidden>Flashlight</button><button class="btn" id="camType" type="button">Manual — no label</button></div>
+    <div class="cam-sub" id="camSub">Put the red line across the long barcode. It beeps when a box is added.</div>
+    <div class="cam-row"><button class="btn" id="torchBtn" type="button" hidden>Flashlight</button><button class="btn" id="zoomBtn" type="button" hidden>Zoom 2×</button><button class="btn" id="camType" type="button">Manual — no label</button></div>
   </div>
 </div>
 
@@ -1400,19 +1403,48 @@ async function openCam(){
   const tr=camStream.getVideoTracks()[0];let caps={};try{caps=tr.getCapabilities?tr.getCapabilities():{}}catch(e){}
   $('torchBtn').hidden=!caps.torch;
   try{if(caps.focusMode&&caps.focusMode.includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
-  camOn=true;camSay('Point at the label barcode','Hold steady about 6–10 inches away. It beeps when a box is added.');camTick();
+  camZoom=caps.zoom||null;$('zoomBtn').hidden=!(camZoom&&camZoom.max>=1.8);zoomOn=false;$('zoomBtn').textContent='Zoom 2×';
+  camOn=true;camMiss=0;camSay('Point at the label barcode','Put the red line across the long barcode. It beeps when a box is added.');camTick();
 }
 function closeCam(){camOn=false;if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camVideo').srcObject=null;CAM.hidden=true;document.body.style.overflow=R.hidden?'':'hidden';render()}
+let camZoom=null,zoomOn=false,camMiss=0,stripScanner=null,stripCanvas=null;
+$('zoomBtn').addEventListener('click',async()=>{if(!camStream||!camZoom)return;zoomOn=!zoomOn;const z=zoomOn?Math.min(2,camZoom.max):Math.max(1,camZoom.min||1);try{await camStream.getVideoTracks()[0].applyConstraints({advanced:[{zoom:z}]})}catch(e){}$('zoomBtn').textContent=zoomOn?'Zoom 1×':'Zoom 2×'});
+/* fast reader for the band around the red line: Code 128 only, horizontal scan lines only */
+async function detectStrip(c){
+  try{if(!window.zbarWasm)return [];const Z=zbarWasm;
+    if(!stripScanner){stripScanner=await Z.ZBarScanner.create();const T=Z.ZBarSymbolType,C=Z.ZBarConfigType;stripScanner.setConfig(T.ZBAR_NONE,C.ZBAR_CFG_ENABLE,0);stripScanner.setConfig(T.ZBAR_CODE128,C.ZBAR_CFG_ENABLE,1);stripScanner.setConfig(T.ZBAR_NONE,C.ZBAR_CFG_Y_DENSITY,0);stripScanner.setConfig(T.ZBAR_NONE,C.ZBAR_CFG_X_DENSITY,2)}
+    const id=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height);return (await Z.scanImageData(id,stripScanner)).map(s=>s.decode())}catch(e){return []}
+}
+/* the part of the camera picture that sits under the guide box on screen (video uses object-fit:cover) */
+function guideRect(v,W,H){const vr=v.getBoundingClientRect(),gr=$('camGuide').getBoundingClientRect();const k=Math.max(vr.width/W,vr.height/H),ox=(vr.width-W*k)/2,oy=(vr.height-H*k)/2;
+  let x=(gr.left-vr.left-ox)/k,y=(gr.top-vr.top-oy)/k,w=gr.width/k,h=gr.height/k;const padY=h*.35;y-=padY;h+=2*padY;const padX=w*.04;x-=padX;w+=2*padX;
+  x=Math.max(0,x);y=Math.max(0,y);w=Math.min(W-x,w);h=Math.min(H-y,h);return {x,y,w,h}}
 let torch=false;$('torchBtn').addEventListener('click',async()=>{if(!camStream)return;torch=!torch;try{await camStream.getVideoTracks()[0].applyConstraints({advanced:[{torch}]})}catch(e){}$('torchBtn').textContent=torch?'Flashlight off':'Flashlight'});
 async function camTick(){
   if(!camOn)return;
   const v=$('camVideo');
   if(comboOpen||document.hidden||v.readyState<2){setTimeout(camTick,250);return}
   const W=v.videoWidth,H=v.videoHeight;if(!W){setTimeout(camTick,200);return}
-  const sc=Math.min(1,1600/Math.max(W,H));camCanvas=camCanvas||document.createElement('canvas');
-  camCanvas.width=Math.round(W*sc);camCanvas.height=Math.round(H*sc);camCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,camCanvas.width,camCanvas.height);
-  let codes=[];
-  try{codes=await detectNative(camCanvas);if(!codes.length)codes=await detectZbar(camCanvas)}catch(e){}
+  let codes=[];const __t0=performance.now();
+  try{
+    if('BarcodeDetector' in window){            // Android Chrome: built-in reader is fast on the whole picture
+      const sc=Math.min(1,1600/Math.max(W,H));camCanvas=camCanvas||document.createElement('canvas');
+      camCanvas.width=Math.round(W*sc);camCanvas.height=Math.round(H*sc);camCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,camCanvas.width,camCanvas.height);
+      codes=await detectNative(camCanvas);
+    }
+    if(!codes.length){                          // iPhone (and backup): read only the band around the red line, full sharpness
+      const g=guideRect(v,W,H);const sc=Math.min(1,1400/g.w);stripCanvas=stripCanvas||document.createElement('canvas');
+      stripCanvas.width=Math.max(1,Math.round(g.w*sc));stripCanvas.height=Math.max(1,Math.round(g.h*sc));
+      stripCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,g.x,g.y,g.w,g.h,0,0,stripCanvas.width,stripCanvas.height);
+      codes=await detectStrip(stripCanvas);
+      if(!codes.length&&++camMiss%6===0){        // now and then look at the whole picture too (QR codes, labels held sideways)
+        const s2=Math.min(1,1000/Math.max(W,H));camCanvas=camCanvas||document.createElement('canvas');
+        camCanvas.width=Math.round(W*s2);camCanvas.height=Math.round(H*s2);camCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,camCanvas.width,camCanvas.height);
+        codes=await detectZbar(camCanvas);
+      }
+    }
+  }catch(e){}
+  window.__t=window.__t||{n:0,ms:0};window.__t.n++;window.__t.ms+=performance.now()-__t0;
   const now=Date.now();let handled=false;
   for(const raw of codes){
     const p=parseGS1(raw);
@@ -1427,7 +1459,8 @@ async function camTick(){
     }
   }
   if(!handled&&codes.length&&!(lastHit.has('x'+codes[0])&&now-lastHit.get('x'+codes[0])<2500)){lastHit.set('x'+codes[0],now);camSay('That barcode has no weight','Aim at the long GS1 barcode (or QR code) on the label.','miss')}
-  setTimeout(camTick,handled?400:90);
+  if(handled)camMiss=0;
+  setTimeout(camTick,handled?350:15);
 }
 $('camBtn').addEventListener('click',openCam);$('rCamBtn').addEventListener('click',()=>{openCam()});
 $('camDone').addEventListener('click',closeCam);
