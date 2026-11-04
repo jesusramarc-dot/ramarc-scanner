@@ -283,7 +283,8 @@ body{margin:0}
     <section class="panel" id="connBox" aria-labelledby="connTitle">
       <div id="connOff">
         <h2 id="connTitle" style="margin-bottom:4px">Share with every phone</h2>
-        <p class="note" style="margin:0 0 10px">Connect once so drafts and finished weight sheets show on every phone. Scan the connect QR on Jesus's phone, or paste the helper link.</p>
+        <p class="note" style="margin:0 0 10px">This phone was disconnected. Tap Reconnect so drafts and finished weight sheets show on every phone.</p>
+        <button class="btn primary full" id="connAuto" type="button" style="margin-bottom:8px">Reconnect</button>
         <button class="btn primary full" id="connScan" type="button">Scan connect QR</button>
         <div class="scan-row" style="margin-top:8px"><input id="connInput" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"><button class="btn" id="connGo" type="button">Connect</button></div>
         <p class="note" id="connMsg" style="margin:6px 0 0"></p>
@@ -291,7 +292,7 @@ body{margin:0}
       <div id="connOn" hidden>
         <div class="row2"><b style="font-size:.95rem">Shared with every phone</b><span class="chip live"><i></i>On</span></div>
         <p class="note" id="connState" style="margin:4px 0 8px"></p>
-        <div class="actions"><button class="btn" id="connQr" type="button">Show connect QR for another phone</button><button class="btn" id="connOffBtn" type="button">Disconnect</button></div>
+        <div class="actions"><button class="btn" id="connQr" type="button" hidden>Show connect QR for another phone</button><button class="btn" id="connOffBtn" type="button">Disconnect</button></div>
         <div id="qrBox" hidden style="text-align:center;margin-top:10px"><div id="qrImg"></div><p class="note">On the other phone: open the app, tap Scan connect QR, point it here.</p></div>
       </div>
     </section>
@@ -1681,7 +1682,8 @@ document.getElementById('updBtn').addEventListener('click',()=>{saveNow();locati
    collection().where().orderBy().limit().onSnapshot. Reads by polling every few seconds.
    ========================================================= */
 const HELPER_RE=/^https:\/\/script\.google(usercontent)?\.com\/macros\/s\/[A-Za-z0-9_-]{20,}\/exec/;
-function helperUrl(){const c=ls.get('-conn',null);return c&&c.url&&HELPER_RE.test(c.url)?c.url:null}
+const DEFAULT_HELPER='https://script.google.com/macros/s/AKfycbxFTWS9K-lFKZhYMdVUGzXyGkZzWpMyK4Sr_v3-2DtcfepWVxVX9kQ7jcG3_A8lPHFx4w/exec';   // Ramarc's helper: every phone connects automatically
+function helperUrl(){const c=ls.get('-conn',null);if(c&&c.off)return null;if(c&&c.url&&HELPER_RE.test(c.url))return c.url;return DEFAULT_HELPER}
 async function helperCall(url,params,post){
   if(navigator.onLine===false)throw {code:'unavailable'};
   let r;
@@ -1775,7 +1777,7 @@ function tryConnect(raw,fromCam){
 function renderConnect(){
   const box=$('connBox');if(!box)return;const u=helperUrl();
   $('connOff').hidden=!!u;$('connOn').hidden=!u;
-  if(u)$('connState').textContent=helperState==='bad'?'Connected, but the helper is not answering correctly. Ask Jesus.':helperState==='offline'?'Connected — no signal right now. Scans save on this phone and send later.':'Connected — drafts and completed sheets are shared with every phone.';
+  if(u)$('connState').textContent=helperState==='bad'?'Connected, but the helper is not answering correctly. Ask Jesus.':helperState==='offline'?'Connected — no signal right now. Scans save on this phone and send later.':'Connected automatically — drafts and completed sheets are shared with every phone.';
 }
 let qrLib=null;
 function loadQr(){if(window.qrcode)return Promise.resolve(true);if(qrLib)return qrLib;qrLib=new Promise(res=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';sc.onload=()=>res(true);sc.onerror=()=>{qrLib=null;res(false)};document.head.appendChild(sc)});return qrLib}
@@ -1784,9 +1786,10 @@ async function showQr(){const u=helperUrl();if(!u)return;const box=$('qrBox');bo
   const q=qrcode(0,'M');q.addData(u);q.make();$('qrImg').innerHTML=q.createSvgTag({cellSize:5,margin:3,scalable:true});const sv=$('qrImg').querySelector('svg');if(sv){sv.style.width='240px';sv.style.height='240px';sv.style.background='#fff'}}
 $('connScan').addEventListener('click',()=>{camMode='connect';openCam().then(()=>{if(camOn)camSay('Scan the connect QR code','Point at the QR code on the other phone or the sheet.')})});
 $('connGo').addEventListener('click',()=>tryConnect($('connInput').value,false));
+$('connAuto').addEventListener('click',()=>{ls.set('-conn',null);saveNow();location.reload()});
 $('connQr').addEventListener('click',showQr);
 $('connOffBtn').addEventListener('click',e=>{const b=e.currentTarget;if(!b.classList.contains('danger')){b.classList.add('danger');b.textContent='Tap again to disconnect this phone';setTimeout(()=>{b.classList.remove('danger');b.textContent='Disconnect'},4000);return}
-  ls.set('-conn',null);ls.set('-sdbmeta',null);saveNow();location.reload()});
+  ls.set('-conn',{off:true});ls.set('-sdbmeta',null);saveNow();location.reload()});
 /* link like ...ramarc-scanner/#connect=<helper url> (works when the link is opened in the same browser the app uses) */
 (function(){const h=location.hash||'';const i=h.indexOf('connect=');if(i>=0){const raw=decodeURIComponent(h.slice(i+8));history.replaceState(null,'',location.pathname);if(!helperUrl())setTimeout(()=>tryConnect(raw,false),400)}})();
 renderConnect();
