@@ -231,7 +231,11 @@ table.ws tfoot td{font-weight:600;background:var(--accent-soft)}
 .toast.ok{color:var(--ok)} .toast.bad{color:var(--bad)}
 .toast a{color:var(--accent)}
 @media (max-width:420px){.tally b{font-size:1.35rem}.readout .w{font-size:2rem}.fields{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+#flash{position:fixed;inset:0;z-index:95;pointer-events:none;opacity:0;background:transparent}
+#flash.go{animation:flash .45s ease-out}
+#flash.ok{background:rgba(27,160,80,.55)} #flash.warn{background:rgba(240,170,40,.55)} #flash.dup,#flash.bad{background:rgba(200,40,30,.55)}
+@keyframes flash{0%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}#flash.go{animation-duration:.25s}}
 html{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
 body{margin:0}
 .cam{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
@@ -428,6 +432,7 @@ body{margin:0}
 </main>
 
 <!-- ===================== RAPID ===================== -->
+<div id="flash" aria-hidden="true"></div>
 <div id="rapid" class="rapid" hidden role="dialog" aria-modal="true" aria-label="Rapid scan">
   <div class="r-top">
     <div><b id="rCount" class="num">0</b><span id="rCountLbl">Boxes</span></div>
@@ -464,6 +469,7 @@ body{margin:0}
   </div>
 </div>
 
+<div id="updBar" hidden style="position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:90;background:#1b7443;color:#fff;border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:center;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.3)"><span style="flex:1">A new version of the app is ready.</span><button class="btn" id="updBtn" type="button" style="background:#fff;color:#1b7443;border-color:#fff;min-height:40px">Update now</button></div>
 <!-- ===================== LIVE CAMERA ===================== -->
 <div id="cam" class="cam" hidden role="dialog" aria-modal="true" aria-label="Live camera scanning">
   <video id="camVideo" playsinline muted autoplay></video>
@@ -601,6 +607,7 @@ addEventListener('pointerdown',unlockAudio,{passive:true});addEventListener('key
 const TONES={ok:[[1046,.07,'sine'],[1568,.11,'sine']],warn:[[880,.09,'triangle'],[1175,.12,'triangle']],dup:[[440,.09,'square'],[0,.06],[440,.09,'square']],bad:[[180,.32,'square']]};
 function beep(kind){
   if(kind===true)kind='ok';if(kind===false)kind='bad';
+  try{const fl=document.getElementById('flash');fl.className='';void fl.offsetWidth;fl.className='go '+kind}catch(e){}  // big screen flash: iPhones don't vibrate for web apps
   if(soundOn){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();let t=actx.currentTime+.01;
     for(const [f,d,type] of TONES[kind]||TONES.ok){if(f){const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;
       g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(type==='square'?.12:.35,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
@@ -1433,7 +1440,13 @@ $('mailBtn2').addEventListener('click',async()=>{const blob=makePdf();if(!blob)r
   await offer(safeName()+'.pdf',blob,{subject,text});S.exported=true;saveLocal()});
 
 /* ---- offline: cache the app on the phone so it opens with no signal ---- */
-if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+if('serviceWorker' in navigator&&location.protocol==='https:'){
+  const hadSW=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(reg=>{setInterval(()=>reg.update().catch(()=>{}),30*60*1000)}).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!hadSW)return;const b=document.getElementById('updBar');if(b)b.hidden=false});
+}
+document.getElementById('updBtn').addEventListener('click',()=>{saveNow();location.reload()});
 
 /* ---- boot ---- */
 recompute();
