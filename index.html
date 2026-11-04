@@ -850,7 +850,8 @@ function renderHome(){
   for(const {id,v} of OPEN_REMOTE)if(!(S.load&&S.load.id===id))rows.set(id,{v,remote:true});
   for(const id in DRAFTS){const st=DRAFTS[id];if(!st||!st.load||(S.load&&S.load.id===id))continue;const r=rows.get(id)||{v:Object.assign({status:'open'},st.load)};r.st=st;rows.set(id,r)}
   const list=[...rows.entries()].sort((a,b)=>((b[1].v.updatedAt||b[1].v.createdAt||0)-(a[1].v.updatedAt||a[1].v.createdAt||0)));
-  box.innerHTML='';$('draftsBox').hidden=!list.length;
+  box.innerHTML='';$('draftsBox').hidden=false;
+  if(!list.length){const e=document.createElement('p');e.className='note';e.style.margin='0';e.textContent=DB?'No drafts right now. When anyone taps "Save draft & switch sheet", it shows here on every phone.':'No drafts yet. Tap "Save draft & switch sheet" while scanning to keep a sheet here.';box.appendChild(e)}
   for(const [id,r] of list){const v=r.v;
     let n=v.count,lb=v.netLb;if(r.st){const bx=boxesOf(r.st);if(!r.remote||bx.length>=(n||0)){n=bx.length;lb=totals(bx)}}
     const by=[v.createdByName?'started by '+v.createdByName:'',v.lastByName&&v.lastByName!==v.createdByName?'last scan '+v.lastByName:''].filter(Boolean).join(', ');
@@ -861,7 +862,8 @@ function renderHome(){
   for(const {id,v} of DONE_REMOTE)drows.set(id,{v,remote:true});
   for(const d of DONE){if(d&&d.load&&!drows.has(d.load.id))drows.set(d.load.id,{v:d.load,local:d})}
   const dl=[...drows.entries()].sort((a,b)=>(b[1].v.closedAt||0)-(a[1].v.closedAt||0)).slice(0,40);
-  done.innerHTML='';$('doneBox').hidden=!dl.length;$('doneCount').textContent=dl.length?'('+dl.length+')':'';
+  done.innerHTML='';$('doneBox').hidden=false;
+  if(!dl.length){const e=document.createElement('p');e.className='note';e.style.margin='0';e.textContent='No completed sheets yet. Finished sheets show here so you can reopen and fix them.';done.appendChild(e)}$('doneCount').textContent=dl.length?'('+dl.length+')':'';
   for(const [id,r] of dl){const v=r.v;const when=v.closedAt?new Date(v.closedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
     done.appendChild(homeItem((v.mode==='combos'?'COMBOS · ':'BOXES · ')+((v.info&&v.info.product)||''),loadLine(v,['finished',when,v.closedByName?'by '+v.closedByName:''].filter(Boolean).join(' ')),statLine(v.mode,v.count,v.netLb),'Reopen','',e=>reopenLoad(id,r,e.currentTarget)))}
 }
@@ -909,7 +911,11 @@ async function initShared(){
   if(!DB&&window.__sheetDB)DB=window.__sheetDB();
   if(USER){try{const me=await USER.me();ME.email=me.email||null;if(!ME.name)ME.name=(me.email&&PEOPLE[me.email.toLowerCase()])||me.name||'';if(!$('s_by').value)$('s_by').value=ME.name;
     if(!ls.get('-name','')&&ME.name)$('byNote').textContent='';}catch(e){}}
-  if(DB){shared=true;listenOpenLoads();if(S.load&&S.load.shared){if(!S.load.needsCreate)attach(S.load.id);dirtyAll();scheduleFlush(300)}scheduleParked(2000)}
+  if(DB){shared=true;
+    /* sheets started before this phone was connected: share them now */
+    const up=st=>{if(st&&st.load&&!st.load.shared){st.load.shared=true;st.load.needsCreate=true;st.load.createdByName=st.load.createdByName||ME.name||'';st.unsynced=st.mine.boxes.length||1;dirtyAll(st)}};
+    up(S);for(const id in DRAFTS)up(DRAFTS[id]);saveDrafts();saveNow();
+    listenOpenLoads();if(S.load&&S.load.shared){if(!S.load.needsCreate)attach(S.load.id);dirtyAll();scheduleFlush(300)}scheduleParked(2000)}
   else shared=false;
   setChip();renderHome();
 }
