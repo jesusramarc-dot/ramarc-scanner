@@ -274,6 +274,34 @@ body{margin:0}
 <main class="wrap">
 
   <!-- ===================== SETUP ===================== -->
+  <div id="homeLists" style="display:flex;flex-direction:column;gap:14px;margin-bottom:14px">
+    <section class="panel" id="draftsBox" hidden aria-labelledby="draftsTitle">
+      <div class="row2"><h2 id="draftsTitle">Weight sheets in progress</h2></div>
+      <p class="note" style="margin:0 0 8px">Drafts from every phone. Tap Open to keep scanning into one.</p>
+      <div class="loads" id="draftList"></div>
+    </section>
+    <section class="panel" id="connBox" aria-labelledby="connTitle">
+      <div id="connOff">
+        <h2 id="connTitle" style="margin-bottom:4px">Share with every phone</h2>
+        <p class="note" style="margin:0 0 10px">Connect once so drafts and finished weight sheets show on every phone. Scan the connect QR on Jesus's phone, or paste the helper link.</p>
+        <button class="btn primary full" id="connScan" type="button">Scan connect QR</button>
+        <div class="scan-row" style="margin-top:8px"><input id="connInput" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"><button class="btn" id="connGo" type="button">Connect</button></div>
+        <p class="note" id="connMsg" style="margin:6px 0 0"></p>
+      </div>
+      <div id="connOn" hidden>
+        <div class="row2"><b style="font-size:.95rem">Shared with every phone</b><span class="chip live"><i></i>On</span></div>
+        <p class="note" id="connState" style="margin:4px 0 8px"></p>
+        <div class="actions"><button class="btn" id="connQr" type="button">Show connect QR for another phone</button><button class="btn" id="connOffBtn" type="button">Disconnect</button></div>
+        <div id="qrBox" hidden style="text-align:center;margin-top:10px"><div id="qrImg"></div><p class="note">On the other phone: open the app, tap Scan connect QR, point it here.</p></div>
+      </div>
+    </section>
+    <section class="panel" id="doneBox" hidden>
+      <details id="doneDetails"><summary style="cursor:pointer;font-weight:700;font-size:1.05rem;min-height:32px;display:flex;align-items:center;gap:6px">Completed weight sheets <span id="doneCount" class="note" style="margin:0"></span></summary>
+        <p class="note" style="margin:6px 0 8px">Reopen one to add, remove or fix boxes, then save the PDF again.</p>
+        <div class="loads" id="doneList"></div>
+      </details>
+    </section>
+  </div>
   <section id="setupView" class="panel" aria-labelledby="setupTitle">
     <div class="row2"><h2 id="setupTitle">Start a load</h2><span id="syncChip" class="chip local"><i></i>Saved on this phone</span></div>
     <p class="note" id="setupNote">Fill in the load before scanning. Fields marked <span style="color:var(--bad)">*</span> are required.</p>
@@ -319,10 +347,6 @@ body{margin:0}
       </div>
     </form>
     <datalist id="vendorList"></datalist>
-    <div id="openLoadsBox" hidden>
-      <h3 style="font-size:1.05rem;margin:4px 0 8px">Or join a load in progress</h3>
-      <div class="loads" id="openLoads"></div>
-    </div>
   </section>
 
   <!-- ===================== WORK ===================== -->
@@ -336,7 +360,7 @@ body{margin:0}
         <div class="pbar" id="lcBar"><i></i></div>
         <div class="note" id="lcProgTxt"></div>
       </div>
-      <div class="actions"><button class="btn" id="editLoad" type="button">Edit load info</button><button class="btn" id="goFinish" type="button">Finish load</button></div>
+      <div class="actions"><button class="btn primary" id="draftBtn" type="button">Save draft &amp; switch sheet</button><button class="btn" id="editLoad" type="button">Edit load info</button><button class="btn" id="goFinish" type="button">Finish load</button></div>
     </section>
 
     <section class="panel" aria-label="Scan">
@@ -414,6 +438,7 @@ body{margin:0}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M12 12v6m-3-3 3 3 3-3"/></svg>
           Save or share PDF (Mail, Drive, Files…)
         </button>
+        <button class="btn primary" id="oneTapBtn" type="button" hidden>Send to office — one tap</button>
         <button class="btn" id="mailBtn2" type="button">Email PDF (Gmail / Mail)</button><button class="btn" id="mailBtn" type="button" hidden>Email PDF</button>
         <button class="btn" id="driveBtn" type="button" hidden>Save to Google Drive</button>
       </div>
@@ -424,12 +449,13 @@ body{margin:0}
         <p class="note">Sends from the Gmail account connected to Claude on this phone, with the PDF attached.</p>
         <div class="m-actions" style="display:flex;gap:8px"><button class="btn primary" style="flex:1" type="submit" id="mSend">Send email</button><button class="btn" style="flex:1" type="button" id="mCancel">Cancel</button></div>
       </form>
+      <p class="note" id="oneTapTo" style="margin:4px 0 0"></p>
       <div id="toast" class="toast" role="status"></div>
       <div class="actions">
         <button class="btn" id="csvBtn" type="button">Download CSV</button>
         <button class="btn" id="finishBtn" type="button">Finish load</button>
       </div>
-      <p class="note" id="finishNote">Finish the load after the PDF is saved or shared. Tap Save or share PDF, then pick Mail, Gmail, Drive or Save to Files.</p>
+      <p class="note" id="finishNote">Finish after the PDF is sent or saved. It moves to Completed on every phone — you can reopen it later to fix it.</p>
     </section>
   </div>
 </main>
@@ -520,7 +546,8 @@ const KEY='ramarc-ws-v2';
 const ROWS=25, COLS=12, PER_PAGE=ROWS*COLS, PART_CAP=300, COMBOS_PER_PAGE=12;
 const $=id=>document.getElementById(id);
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-const ls={get(k,d){try{const v=localStorage.getItem(KEY+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(KEY+k,JSON.stringify(v))}catch(e){}}};
+let lsWarned=false;
+const ls={get(k,d){try{const v=localStorage.getItem(KEY+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(KEY+k,JSON.stringify(v));return true}catch(e){if(!lsWarned&&e&&/quota/i.test(e.name+e.message)){lsWarned=true;setTimeout(()=>{try{toast('This phone\'s app storage is full. Finish or delete old drafts so new scans can be saved.','bad')}catch(_){}},0)}return false}}};
 // Known people: Google email -> name printed as "Weighed by"
 const PEOPLE={'jesusramarc@gmail.com':'Jesus Prieto'};
 let DEV=ls.get('-dev',null);if(!DEV){DEV='d'+Math.random().toString(36).slice(2,10);ls.set('-dev',DEV)}
@@ -640,7 +667,23 @@ let S=ls.get('-state',null)||{load:null,mine:{boxes:[],removed:[]},others:{},exp
 let ME={email:null,name:ls.get('-name','')};
 let BOXES=[];
 let saveT=null;
-function saveNow(){clearTimeout(saveT);saveT=null;ls.set('-state',S)}
+function saveNow(){clearTimeout(saveT);saveT=null;ls.set('-state',S);if(draftsDirty){draftsDirty=false;ls.set('-drafts',DRAFTS)}}
+/* Drafts: weight sheets parked on this phone (switch between several loads; each keeps its own scans).
+   DONE: finished sheets that were never shared, so they can still be reopened on this phone. */
+let DRAFTS=ls.get('-drafts',{})||{},draftsDirty=false;
+let DONE=ls.get('-done',[])||[];
+let CLOSEQ=ls.get('-closeq',[])||[];   // "finished" marks waiting for signal
+function saveDrafts(){draftsDirty=true;saveLocal()}
+function emptyS(){return {load:null,mine:{boxes:[],removed:[]},others:{},exported:false}}
+function boxesOf(st){
+  if(!st||!st.load)return [];
+  const removed=new Set(st.mine.removed||[]);
+  const parts=[{by:'',boxes:st.mine.boxes,removed:st.mine.removed},...Object.values(st.others||{})];
+  parts.forEach(p=>(p.removed||[]).forEach(k=>removed.add(k)));
+  const seen=new Map();
+  parts.forEach(p=>(p.boxes||[]).forEach(b=>{if(!removed.has(b.key)&&!seen.has(b.key))seen.set(b.key,b)}));
+  return [...seen.values()];
+}
 function saveLocal(){if(!saveT)saveT=setTimeout(saveNow,250)}   // coalesce bursts of scans into one write
 addEventListener('pagehide',saveNow);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
 function isCombo(){return S.load&&S.load.mode==='combos'}
@@ -666,11 +709,14 @@ function markOdd(){
 /* =========================================================
    SHARING (db) — every phone writes only its own part docs
    ========================================================= */
-let lastMetaEdit=0,DB=null,USER=null,shared=false,unsubLoad=null,unsubParts=null,unsubOpen=null,dirty=new Set(),flushT=null,flushing=false,retryN=0;
+let lastMetaEdit=0,DB=null,USER=null,shared=false,unsubLoad=null,unsubParts=null,unsubOpen=null,unsubDone=null,flushT=null,retryN=0;
+const DIRTY=new WeakMap(),FLUSHING=new Set();
+function dset(st){st=st||S;let d=DIRTY.get(st);if(!d){d=new Set();DIRTY.set(st,d)}return d}
 /* Poor-signal design: every scan is saved on the phone first. Sending to the shared load
    happens in the background, retries with backoff while offline, and resumes when signal returns. */
 const isOnline=()=>navigator.onLine!==false;
-function pendingCount(){return S.load?(S.unsynced||0):0}
+function pendingCount(st){st=st||S;return st.load?(st.unsynced||0):0}
+function hasPending(st){st=st||S;return !!(st.load&&st.load.shared&&(st.unsynced||st.load.needsCreate||st.load.metaDirty||st.load.reopenPending||dset(st).size))}
 function setChip(){
   let t;
   if(!DB)t=['local','Saved on this phone'];
@@ -681,34 +727,63 @@ function setChip(){
   for(const id of ['syncChip','syncChip2']){const c=$(id);if(!c)continue;c.className='chip '+t[0];c.innerHTML='<i></i>';c.appendChild(document.createTextNode(t[1]))}
 }
 function partId(n){return DEV+'-'+n}
-function markDirtyFor(idx){dirty.add(Math.floor(idx/PART_CAP))}
-function dirtyAll(){S.mine.boxes.forEach((_,i)=>markDirtyFor(i));dirty.add(0)}
+function markDirtyFor(idx){dset(S).add(Math.floor(idx/PART_CAP))}
+function dirtyAll(st){st=st||S;const d=dset(st);st.mine.boxes.forEach((_,i)=>d.add(Math.floor(i/PART_CAP)));d.add(0)}
 function scheduleFlush(ms){if(!DB||!shared||!S.load||!S.load.shared)return;clearTimeout(flushT);flushT=setTimeout(flush,ms==null?900:ms)}
 function withTimeout(p,ms){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej({code:'unavailable',timeout:true}),ms))])}
 function transient(e){const c=e&&e.code;return !isOnline()||!c||c==='unavailable'||c==='resource_exhausted'||c==='queue_overflow'}
-async function flush(){
-  if(!DB||!shared||!S.load||!S.load.shared||flushing)return;
+async function flush(st){
+  st=st||S;
+  if(!DB||!shared||!st.load||!st.load.shared||FLUSHING.has(st))return;
   if(!isOnline()){setChip();return}             // the 'online' event restarts sending
-  flushing=true;const id=S.load.id;
+  FLUSHING.add(st);const id=st.load.id,L=st.load,active=()=>st===S;
   try{
-    if(S.load.needsCreate){
-      await withTimeout(DB.doc('loads/'+id).set({mode:S.load.mode,info:S.load.info,expected:S.load.expected,tol:S.load.tol,recv:S.load.recv||{},status:'open',createdAt:S.load.createdAt,createdByName:ME.name,updatedAt:Date.now()}),15000);
-      S.load.needsCreate=false;saveLocal();attach(id);
+    if(L.needsCreate){
+      await withTimeout(DB.doc('loads/'+id).set({mode:L.mode,info:L.info,expected:L.expected,tol:L.tol,recv:L.recv||{},status:'open',createdAt:L.createdAt,createdByName:L.createdByName||ME.name,updatedAt:Date.now()}),15000);
+      L.needsCreate=false;if(active()){saveLocal();attach(id)}else saveDrafts();
     }
-    if(S.load.metaDirty){
-      await withTimeout(DB.doc('loads/'+id).update({info:S.load.info,expected:S.load.expected,tol:S.load.tol,recv:S.load.recv||{},updatedAt:Date.now()}),15000);
-      S.load.metaDirty=false;saveLocal();
+    if(L.reopenPending){
+      await withTimeout(DB.doc('loads/'+id).update({status:'open',reopenedAt:Date.now(),reopenedByName:ME.name,updatedAt:Date.now()}),15000);
+      L.reopenPending=false;active()?saveLocal():saveDrafts();
     }
-    while(dirty.size){
-      const n=[...dirty][0];const chunk=S.mine.boxes.slice(n*PART_CAP,(n+1)*PART_CAP);
-      await withTimeout(DB.doc('loads/'+id+'/parts/'+partId(n)).set({dev:DEV,by:ME.name||'',boxes:chunk,removed:n===0?(S.mine.removed||[]):[],updatedAt:Date.now()}),15000);
-      dirty.delete(n);                                // only forget a part once it is confirmed
+    if(L.metaDirty){
+      await withTimeout(DB.doc('loads/'+id).update({info:L.info,expected:L.expected,tol:L.tol,recv:L.recv||{},updatedAt:Date.now()}),15000);
+      L.metaDirty=false;active()?saveLocal():saveDrafts();
     }
-    S.unsynced=0;saveLocal();retryN=0;
+    const d=dset(st);
+    while(d.size&&!st.mine.adopt){
+      const n=[...d][0];const chunk=st.mine.boxes.slice(n*PART_CAP,(n+1)*PART_CAP);
+      await withTimeout(DB.doc('loads/'+id+'/parts/'+partId(n)).set({dev:DEV,by:ME.name||'',boxes:chunk,removed:n===0?(st.mine.removed||[]):[],updatedAt:Date.now()}),15000);
+      d.delete(n);                                    // only forget a part once it is confirmed
+    }
+    if(!st.mine.adopt){
+      st.unsynced=0;
+      const all=boxesOf(st),cnt=all.length,lb=Math.round(totals(all)*100)/100;   // running count shows on every phone's list
+      if(L.sentCount!==cnt||L.sentLb!==lb){await withTimeout(DB.doc('loads/'+id).update({count:cnt,netLb:lb,updatedAt:Date.now(),lastByName:ME.name||''}),15000);L.sentCount=cnt;L.sentLb=lb}
+    }
+    active()?saveLocal():saveDrafts();retryN=0;
   }catch(e){
-    if(transient(e)){retryN++;scheduleFlush(Math.min(30000,1500*Math.pow(2,retryN)))}
+    if(transient(e)){retryN++;active()?scheduleFlush(Math.min(30000,1500*Math.pow(2,retryN))):scheduleParked(Math.min(60000,5000*Math.pow(2,retryN)))}
     else dbFail(e);
-  }finally{flushing=false;setChip();if(shared&&dirty.size&&!flushT)scheduleFlush()}
+  }finally{FLUSHING.delete(st);setChip();
+    if(st===S&&S.finishAfterSend&&!hasPending(S)&&!S.mine.adopt)setTimeout(()=>{if(S===st&&S.finishAfterSend&&!hasPending(S))reallyFinish()},0);if(st===S&&shared&&dset(st).size&&!st.mine.adopt&&!flushT)scheduleFlush();if(st!==S)renderHome()}
+}
+/* parked drafts keep sending in the background */
+let parkedT=null;
+function scheduleParked(ms){clearTimeout(parkedT);parkedT=setTimeout(flushParked,ms==null?1500:ms)}
+let closing=false;
+async function sendCloses(){
+  if(closing||!DB||!shared||!isOnline()||!CLOSEQ.length)return;closing=true;
+  try{while(CLOSEQ.length){const c=CLOSEQ[0];
+    try{await withTimeout(DB.doc('loads/'+c.id).update(c.up),15000)}catch(e){if(transient(e)){scheduleParked(15000);break}}   // not transient (e.g. deleted): drop it
+    CLOSEQ.shift();ls.set('-closeq',CLOSEQ)}}
+  finally{closing=false}
+}
+async function flushParked(){
+  parkedT=null;if(!DB||!shared||!isOnline())return;
+  await sendCloses();
+  for(const id of Object.keys(DRAFTS)){const st=DRAFTS[id];if(st&&hasPending(st)){if(!DIRTY.has(st))dirtyAll(st);await flush(st)}}
+  saveNow();
 }
 function dbFail(e){
   const c=e&&e.code;if(transient(e)){scheduleFlush(5000);return}
@@ -717,9 +792,9 @@ function dbFail(e){
     'This phone can\'t write to the shared load (it may only have view access). Scans are kept on this phone.','bad');
 }
 function writeMeta(){lastMetaEdit=Date.now();if(!S.load)return;S.load.metaDirty=true;saveLocal();scheduleFlush(800)}
-addEventListener('online',()=>{setChip();if(S.load&&S.load.shared&&DB){shared=true;retryN=0;dirtyAll();scheduleFlush(300)}});
+addEventListener('online',()=>{setChip();if(DB){shared=true;retryN=0;if(S.load&&S.load.shared){dirtyAll();scheduleFlush(300)}scheduleParked(800)}});
 addEventListener('offline',()=>setChip());
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&isOnline()&&dirty.size)scheduleFlush(300)});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&isOnline()){if(dset(S).size)scheduleFlush(300);scheduleParked(1000)}});
 function attach(id){
   detach();if(!DB)return;
   unsubLoad=DB.doc('loads/'+id).onSnapshot(snap=>{
@@ -728,36 +803,115 @@ function attach(id){
     if(!snap.metadata.hasPendingWrites&&Date.now()-lastMetaEdit>4000){S.load.info=d.info||S.load.info;S.load.expected=d.expected||S.load.expected;S.load.tol=d.tol!=null?d.tol:S.load.tol;S.load.recv=d.recv||S.load.recv;fillRecv();saveLocal();render()}
   },e=>{});
   unsubParts=DB.collection('loads/'+id+'/parts').onSnapshot(qs=>{
-    const o={};qs.docs.forEach(d=>{if(!d.id.startsWith(DEV+'-'))o[d.id]=d.data()});
+    if(!S.load||S.load.id!==id)return;
+    const o={},own=[];qs.docs.forEach(d=>{if(d.id.startsWith(DEV+'-'))own.push(d);else o[d.id]=d.data()});
+    if(S.mine.adopt&&!(qs.metadata&&qs.metadata.fromCache)){   // first real answer from the shared storage
+      own.sort((a,b)=>(+a.id.split('-').pop())-(+b.id.split('-').pop()));
+      const ob=[];let rem=[];own.forEach(d=>{const v=d.data();ob.push(...(v.boxes||[]));rem=rem.concat(v.removed||[])});
+      const keys=new Set(ob.map(b=>b.key));
+      S.mine.boxes=ob.concat(S.mine.boxes.filter(b=>!keys.has(b.key)));S.mine.removed=[...new Set(rem.concat(S.mine.removed||[]))];
+      S.mine.adopt=false;dirtyAll();scheduleFlush(300);
+    }
     S.others=o;saveLocal();render();
   },e=>{});
 }
 function detach(){if(unsubLoad)unsubLoad();if(unsubParts)unsubParts();unsubLoad=unsubParts=null}
 function remoteClosed(d){
-  detach();const was=S.load;S={load:null,mine:{boxes:[],removed:[]},others:{},exported:false};saveLocal();showSetup();
+  if(hasPending(S)||S.mine.adopt)return;          // our unsent scans go first; the sheet stays open here
+  detach();const was=S.load;S=emptyS();saveLocal();showSetup();
   $('setupNote').textContent='The load "'+((was&&was.info.product)||'')+'" was finished on another phone. Start a new load.';
 }
+let OPEN_REMOTE=[],DONE_REMOTE=[];
 function listenOpenLoads(){
   if(!DB||unsubOpen)return;
   try{
-    unsubOpen=DB.collection('loads').where('status','==','open').orderBy('createdAt','desc').limit(30).onSnapshot(qs=>{
-      const box=$('openLoads');box.innerHTML='';const docs=qs.docs.filter(d=>!S.load||d.id!==S.load.id);
-      $('openLoadsBox').hidden=!docs.length;
-      docs.forEach(d=>{const v=d.data();const it=document.createElement('div');it.className='loaditem';
-        const t=document.createElement('div');const b=document.createElement('b');b.textContent=(v.mode==='combos'?'COMBOS · ':'BOXES · ')+(v.info&&v.info.product||'');
-        const s=document.createElement('span');s.textContent=[(v.info&&v.info.vendor)||'',v.info&&v.info.bol?'BOL '+v.info.bol:'',v.info&&v.info.lot?'LOT '+v.info.lot:'',v.createdByName?'started by '+v.createdByName:'',v.info?fmtDate(v.info.date):''].filter(Boolean).join(' · ');
-        t.append(b,s);const j=document.createElement('button');j.className='btn primary';j.type='button';j.textContent='Join';
-        j.addEventListener('click',()=>joinLoad(d.id,v));it.append(t,j);box.appendChild(it)});
-    },e=>{$('openLoadsBox').hidden=true});
+    unsubOpen=DB.collection('loads').where('status','==','open').orderBy('createdAt','desc').limit(50).onSnapshot(qs=>{
+      OPEN_REMOTE=qs.docs.map(d=>({id:d.id,v:d.data()}));renderHome()},e=>{});
   }catch(e){}
+  try{
+    unsubDone=DB.collection('loads').where('status','==','closed').orderBy('closedAt','desc').limit(40).onSnapshot(qs=>{
+      DONE_REMOTE=qs.docs.map(d=>({id:d.id,v:d.data()}));
+      for(const {id} of DONE_REMOTE){const st=DRAFTS[id];if(st&&!hasPending(st)&&!st.mine.adopt){delete DRAFTS[id];saveDrafts()}}   // finished on another phone
+      renderHome()},e=>{});
+  }catch(e){}
+}
+function loadLine(v,extra){const i=v.info||{};return [i.vendor||'',i.bol?'BOL '+i.bol:'',i.lot?'LOT '+i.lot:'',i.cust?'Cust# '+i.cust:'',fmtDate(i.date),extra].filter(Boolean).join(' · ')}
+function homeItem(title,line,stats,btnTxt,btnCls,fn,tag){
+  const it=document.createElement('div');it.className='loaditem';
+  const t=document.createElement('div');const b=document.createElement('b');b.textContent=title;
+  if(tag){const c=document.createElement('span');c.className='chip local';c.style.marginLeft='6px';c.textContent=tag;b.appendChild(c)}
+  const s1=document.createElement('span');s1.textContent=line;const s2=document.createElement('span');s2.className='num';s2.style.display='block';s2.style.color='var(--ink)';s2.style.fontWeight='600';s2.textContent=stats;
+  t.append(b,s1,s2);const j=document.createElement('button');j.className='btn '+btnCls;j.type='button';j.textContent=btnTxt;j.addEventListener('click',fn);it.append(t,j);return it}
+function statLine(mode,n,lb){return n==null?'':(n+(mode==='combos'?' combos':' boxes')+' · '+fmtC(lb||0)+' lb')}
+function renderHome(){
+  const box=$('draftList'),done=$('doneList');if(!box||!done)return;
+  /* drafts: parked on this phone + open on any phone */
+  const rows=new Map();
+  for(const {id,v} of OPEN_REMOTE)if(!(S.load&&S.load.id===id))rows.set(id,{v,remote:true});
+  for(const id in DRAFTS){const st=DRAFTS[id];if(!st||!st.load||(S.load&&S.load.id===id))continue;const r=rows.get(id)||{v:Object.assign({status:'open'},st.load)};r.st=st;rows.set(id,r)}
+  const list=[...rows.entries()].sort((a,b)=>((b[1].v.updatedAt||b[1].v.createdAt||0)-(a[1].v.updatedAt||a[1].v.createdAt||0)));
+  box.innerHTML='';$('draftsBox').hidden=!list.length;
+  for(const [id,r] of list){const v=r.v;
+    let n=v.count,lb=v.netLb;if(r.st){const bx=boxesOf(r.st);if(!r.remote||bx.length>=(n||0)){n=bx.length;lb=totals(bx)}}
+    const by=[v.createdByName?'started by '+v.createdByName:'',v.lastByName&&v.lastByName!==v.createdByName?'last scan '+v.lastByName:''].filter(Boolean).join(', ');
+    const tag=r.st&&hasPending(r.st)?(isOnline()?'sending…':'not sent yet'):'';
+    box.appendChild(homeItem((v.mode==='combos'?'COMBOS · ':'BOXES · ')+((v.info&&v.info.product)||''),loadLine(v,by),statLine(v.mode,n,lb),'Open','primary',()=>openLoad(id),tag))}
+  /* completed */
+  const drows=new Map();
+  for(const {id,v} of DONE_REMOTE)drows.set(id,{v,remote:true});
+  for(const d of DONE){if(d&&d.load&&!drows.has(d.load.id))drows.set(d.load.id,{v:d.load,local:d})}
+  const dl=[...drows.entries()].sort((a,b)=>(b[1].v.closedAt||0)-(a[1].v.closedAt||0)).slice(0,40);
+  done.innerHTML='';$('doneBox').hidden=!dl.length;$('doneCount').textContent=dl.length?'('+dl.length+')':'';
+  for(const [id,r] of dl){const v=r.v;const when=v.closedAt?new Date(v.closedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    done.appendChild(homeItem((v.mode==='combos'?'COMBOS · ':'BOXES · ')+((v.info&&v.info.product)||''),loadLine(v,['finished',when,v.closedByName?'by '+v.closedByName:''].filter(Boolean).join(' ')),statLine(v.mode,v.count,v.netLb),'Reopen','',e=>reopenLoad(id,r,e.currentTarget)))}
+}
+/* put the sheet on screen away as a draft (its scans stay on this phone and keep sending) */
+function parkCurrent(){
+  if(!S.load)return;
+  detach();
+  const st=S;st.others={};                         // other phones' scans come back from the shared storage
+  if(st.load.shared&&dset(st).size)st.unsynced=st.unsynced||1;
+  DRAFTS[st.load.id]=st;S=emptyS();recompute();saveDrafts();saveNow();
+  queue.splice(0);renderQueue();
+  if(st.load.shared)scheduleParked(300);
+}
+function openLoad(id,meta){
+  if(S.load&&S.load.id===id){showWork();return}
+  if(!$('s_by').value.trim()&&!ME.name){$('s_by').classList.add('bad');const er=$('setupErr');er.hidden=false;er.textContent='Enter your name in "Weighed by" first, then tap Open.';$('s_by').focus();return}
+  if($('s_by').value.trim()){ME.name=$('s_by').value.trim();ls.set('-name',ME.name)}
+  parkCurrent();
+  let st=DRAFTS[id];
+  if(st){delete DRAFTS[id];saveDrafts()}
+  else{
+    const v=meta||(OPEN_REMOTE.find(x=>x.id===id)||{}).v;if(!v){toast('That weight sheet is not available on this phone yet.','bad');return}
+    st={load:{id,mode:v.mode||'boxes',info:v.info||{},expected:v.expected||{count:0,lb:0},tol:v.tol!=null?v.tol:5,recv:v.recv||{},createdAt:v.createdAt||Date.now(),createdByName:v.createdByName||'',shared:true},
+        mine:{boxes:[],removed:[],adopt:true},others:{},exported:false};
+  }
+  S=st;saveLocal();
+  if(S.load.shared&&DB){if(!S.load.needsCreate)attach(id);dirtyAll();scheduleFlush(300)}
+  recompute();showWork();
+  readout('',null,'Opened: '+(S.load.info.product||''),(BOXES.length?BOXES.length+(isCombo()?' combos':' boxes')+' so far. ':'')+'Keep scanning — it adds to the same weight sheet.');
+}
+async function reopenLoad(id,r,btn){
+  if(!$('s_by').value.trim()&&!ME.name){$('s_by').classList.add('bad');const er=$('setupErr');er.hidden=false;er.textContent='Enter your name in "Weighed by" first.';$('s_by').focus();return}
+  if(r.local){                                       // never shared: lives only on this phone
+    parkCurrent();const i=DONE.findIndex(d=>d.load&&d.load.id===id);const st=DONE[i];DONE.splice(i,1);ls.set('-done',DONE);
+    st.load.status='open';delete st.load.closedAt;S=st;saveLocal();recompute();showWork();readout('',null,'Reopened','Make your changes, then save the PDF and finish again.');return}
+  if(!DB||!shared||!isOnline()){toast('Reopening a shared weight sheet needs signal. Try again where there is Wi-Fi or signal.','bad');return}
+  if(btn){btn.disabled=true;btn.textContent='Opening…'}
+  try{await withTimeout(DB.doc('loads/'+id).update({status:'open',reopenedAt:Date.now(),reopenedByName:$('s_by').value.trim()||ME.name,updatedAt:Date.now()}),15000)}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='Reopen'}toast('Could not reopen it right now. Try again in a moment.','bad');return}
+  DONE_REMOTE=DONE_REMOTE.filter(x=>x.id!==id);
+  openLoad(id,Object.assign({},r.v,{status:'open'}));
 }
 async function initShared(){
   try{if(window.claude&&window.claude.use){[DB,USER]=await Promise.all([window.claude.use('db').catch(()=>null),window.claude.use('user').catch(()=>null)])}}catch(e){}
+  if(!DB&&window.__sheetDB)DB=window.__sheetDB();
   if(USER){try{const me=await USER.me();ME.email=me.email||null;if(!ME.name)ME.name=(me.email&&PEOPLE[me.email.toLowerCase()])||me.name||'';if(!$('s_by').value)$('s_by').value=ME.name;
     if(!ls.get('-name','')&&ME.name)$('byNote').textContent='';}catch(e){}}
-  if(DB){shared=true;listenOpenLoads();if(S.load&&S.load.shared){if(!S.load.needsCreate)attach(S.load.id);dirtyAll();scheduleFlush(300)}}
+  if(DB){shared=true;listenOpenLoads();if(S.load&&S.load.shared){if(!S.load.needsCreate)attach(S.load.id);dirtyAll();scheduleFlush(300)}scheduleParked(2000)}
   else shared=false;
-  setChip();
+  setChip();renderHome();
 }
 
 /* =========================================================
@@ -771,16 +925,16 @@ $('modeBoxes').addEventListener('click',()=>setMode('boxes'));$('modeCombos').ad
 function fillVendorList(){const dl=$('vendorList');dl.innerHTML='';const names=new Set([...VENDORS.map(v=>v[1]),...ls.get('-vendors',[])]);
   [...names].sort().forEach(n=>{const o=document.createElement('option');o.value=n;dl.appendChild(o)})}
 function showSetup(){
-  $('setupView').hidden=false;$('workView').hidden=true;$('tally').hidden=!S.load;
+  $('setupView').hidden=false;$('homeLists').hidden=false;$('workView').hidden=true;$('tally').hidden=!S.load;
   if(!editing){for(const k in SF)$(SF[k]).value=k==='date'?today():'';$('s_expN').value='';$('s_expLb').value='';$('s_tol').value='5';setMode('boxes')}
   $('s_by').value=$('s_by').value||ME.name||'';
-  $('setupTitle').textContent=editing?'Edit load info':'Start a load';$('startBtn').textContent=editing?'Save changes':'Start scanning';$('cancelEdit').hidden=!editing;
+  $('setupTitle').textContent=editing?'Edit load info':'Start a new weight sheet';$('startBtn').textContent=editing?'Save changes':'Start scanning';$('cancelEdit').hidden=!editing;
   $('modeBoxes').disabled=$('modeCombos').disabled=editing&&BOXES.length>0;
-  $('openLoadsBox').hidden=editing||!$('openLoads').children.length;
+  $('homeLists').hidden=editing;renderHome();
   $('hdrSub').textContent=editing?'Editing load info':'Start a load to begin';
   fillVendorList();window.scrollTo(0,0);
 }
-function showWork(){editing=false;$('setupView').hidden=true;$('workView').hidden=false;$('tally').hidden=false;fillRecv();render()}
+function showWork(){editing=false;$('setupView').hidden=true;$('homeLists').hidden=true;$('workView').hidden=false;$('tally').hidden=false;fillRecv();render()}
 $('setupForm').addEventListener('input',e=>{if(e.target.classList)e.target.classList.remove('bad');$('refGroup').classList.remove('bad');$('setupErr').hidden=true});
 $('setupForm').addEventListener('submit',async e=>{
   e.preventDefault();
@@ -796,20 +950,18 @@ $('setupForm').addEventListener('submit',async e=>{
   const tol=Math.max(0,parseFloat($('s_tol').value)||5);
   if(editing&&S.load){Object.assign(S.load,{info,expected,tol});if(!BOXES.length)S.load.mode=setupMode;saveLocal();writeMeta();showWork();return}
   const id='L'+info.date.replace(/-/g,'').slice(2)+'-'+Math.random().toString(36).slice(2,7);
-  S={load:{id,mode:setupMode,info,expected,tol,recv:{},createdAt:Date.now(),shared:false},mine:{boxes:[],removed:[]},others:{},exported:false,unsynced:0};
+  parkCurrent();
+  S={load:{id,mode:setupMode,info,expected,tol,recv:{},createdAt:Date.now(),createdByName:ME.name,shared:false},mine:{boxes:[],removed:[]},others:{},exported:false,unsynced:0};
   if(DB&&shared){S.load.shared=true;S.load.needsCreate=true}
   saveLocal();recompute();showWork();if(S.load.shared)flush();
   readout('',null,'Ready to scan',isCombo()?'Scan a combo label. You\'ll enter the Ramarc scale gross after each one.':'Scan the first box.');
 });
 $('cancelEdit').addEventListener('click',()=>{editing=false;showWork()});
+$('draftBtn').addEventListener('click',()=>{if(!S.load)return;const n=BOXES.length,name=S.load.info.product||'';parkCurrent();showSetup();
+  $('setupNote').textContent='Saved "'+name+'" as a draft ('+n+(n===1?' scan':' scans')+'). Open another sheet below, or start a new one.';beep('ok')});
 $('editLoad').addEventListener('click',()=>{if(!S.load)return;editing=true;
   for(const k in SF)$(SF[k]).value=S.load.info[k]||'';$('s_expN').value=S.load.expected.count||'';$('s_expLb').value=S.load.expected.lb||'';$('s_tol').value=S.load.tol;$('s_by').value=ME.name;setMode(S.load.mode);showSetup()});
-function joinLoad(id,v){
-  if(!$('s_by').value.trim()){$('s_by').classList.add('bad');const er=$('setupErr');er.hidden=false;er.textContent='Enter your name in "Weighed by" first, then tap Join.';$('s_by').focus();return}
-  ME.name=$('s_by').value.trim();ls.set('-name',ME.name);
-  S={load:{id,mode:v.mode||'boxes',info:v.info||{},expected:v.expected||{count:0,lb:0},tol:v.tol!=null?v.tol:5,recv:v.recv||{},createdAt:v.createdAt||Date.now(),shared:true},mine:{boxes:[],removed:[]},others:{},exported:false};
-  saveLocal();attach(id);recompute();showWork();readout('',null,'Joined the load','Your scans add to the same weight sheet as the other phones.');
-}
+function joinLoad(id,v){openLoad(id,v)}
 
 /* =========================================================
    ADDING BOXES / COMBOS
@@ -1376,12 +1528,19 @@ function finishLoad(btn){
     finArm=setTimeout(()=>{btn.classList.remove('danger');btn.textContent='Finish load'},5000);return}
   clearTimeout(finArm);btn.classList.remove('danger');btn.textContent='Finish load';
   const id=S.load&&S.load.id,was=S.load&&S.load.shared;
-  if(was&&DB&&shared&&(pendingCount()||S.load.needsCreate||S.load.metaDirty||dirty.size)){
-    beep('bad');toast((isOnline()?'Still sending ':'No signal: ')+(pendingCount()||'some')+' scan(s) haven\'t reached the shared load yet. Move to where there is signal (or Wi-Fi) and tap Finish again. Nothing is lost — they are saved on this phone.','bad');
-    if(isOnline()){dirtyAll();scheduleFlush(100)}return}
-  if(was&&DB&&shared){DB.doc('loads/'+id).update({status:'closed',closedAt:Date.now(),closedByName:ME.name,count:BOXES.length,netLb:Math.round(totals(BOXES)*100)/100}).catch(()=>{})}
-  detach();S={load:null,mine:{boxes:[],removed:[]},others:{},exported:false};saveLocal();queue.splice(0);renderQueue();recompute();
-  showSetup();$('setupNote').textContent='Load finished. Start the next load.';beep('ok');
+  if(was&&DB&&shared&&(hasPending(S)||S.mine.adopt)){
+    if(isOnline()){S.finishAfterSend=true;saveLocal();toast('Sending the last scans… it will finish by itself in a moment.','ok');dirtyAll();scheduleFlush(100);return}
+    beep('bad');toast('No signal: '+(pendingCount()||'some')+' scan(s) haven\'t reached the shared load yet. Move to where there is signal (or Wi-Fi) and tap Finish again. Nothing is lost — they are saved on this phone.','bad');return}
+  reallyFinish();
+}
+function reallyFinish(){
+  const id=S.load&&S.load.id,was=S.load&&S.load.shared;if(!id)return;S.finishAfterSend=false;
+  const closed={status:'closed',closedAt:Date.now(),closedByName:ME.name,count:BOXES.length,netLb:Math.round(totals(BOXES)*100)/100};
+  const st=S;detach();S=emptyS();                    // stop listening first, so our own "finished" isn't mistaken for another phone's
+  if(was&&DB&&shared){DONE_REMOTE=[{id,v:Object.assign({},st.load,closed)}].concat(DONE_REMOTE.filter(x=>x.id!==id));const up=Object.assign({updatedAt:Date.now()},closed);CLOSEQ.push({id,up});ls.set('-closeq',CLOSEQ);sendCloses()}
+  else{Object.assign(st.load,closed);st.others={};DONE=[st].concat(DONE.filter(d=>d.load&&d.load.id!==id)).slice(0,8);ls.set('-done',DONE)}
+  saveLocal();queue.splice(0);renderQueue();recompute();
+  showSetup();$('setupNote').textContent='Weight sheet finished — it is in Completed below. Open a draft or start the next one.';beep('ok');
 }
 $('finishBtn').addEventListener('click',e=>finishLoad(e.currentTarget));
 $('goFinish').addEventListener('click',()=>$('finishPanel').scrollIntoView({block:'start',behavior:'smooth'}));
@@ -1389,12 +1548,12 @@ $('goFinish').addEventListener('click',()=>$('finishPanel').scrollIntoView({bloc
 /* =========================================================
    LIVE CAMERA (this copy runs on its own site, so the camera can stay open)
    ========================================================= */
-let camStream=null,camOn=false,camCanvas=null,lastHit=new Map(),missT=0;
+let camMode='',camStream=null,camOn=false,camCanvas=null,lastHit=new Map(),missT=0;
 const CAM=$('cam');
 function camTally(){$('cCount').textContent=BOXES.length;$('cCountLbl').textContent=isCombo()?'Combos':'Boxes';$('cTotal').textContent=fmtC(totals(BOXES))}
 function camSay(msg,sub,kind){$('camMsg').textContent=msg;$('camSub').textContent=sub||'';const g=$('camGuide');g.classList.remove('hit','miss');if(kind){g.classList.add(kind);clearTimeout(missT);missT=setTimeout(()=>g.classList.remove('hit','miss'),700)}}
 async function openCam(){
-  if(!S.load)return;unlockAudio();
+  if(!S.load&&camMode!=='connect')return;unlockAudio();
   if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){toast('This phone browser has no camera access here. Open the app in Safari (iPhone) or Chrome (Android).','bad');return}
   CAM.hidden=false;document.body.style.overflow='hidden';camTally();camSay('Starting camera…','');
   try{camStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}})}
@@ -1408,7 +1567,7 @@ async function openCam(){
   await Promise.race([startWorkers(),new Promise(r=>setTimeout(r,1500))]);if(!camOn)return;
   camTick(0);if(ZW.length>1)setTimeout(()=>camTick(1),40);
 }
-function closeCam(){camOn=false;if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camVideo').srcObject=null;CAM.hidden=true;document.body.style.overflow=R.hidden?'':'hidden';render()}
+function closeCam(){camOn=false;camMode='';if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camVideo').srcObject=null;CAM.hidden=true;document.body.style.overflow=R.hidden?'':'hidden';render()}
 let camZoom=null,zoomOn=false,camMiss=0,stripScanner=null,stripCanvas=null;
 $('zoomBtn').addEventListener('click',async()=>{if(!camStream||!camZoom)return;zoomOn=!zoomOn;const z=zoomOn?Math.min(2,camZoom.max):Math.max(1,camZoom.min||1);try{await camStream.getVideoTracks()[0].applyConstraints({advanced:[{zoom:z}]})}catch(e){}$('zoomBtn').textContent=zoomOn?'Zoom 1×':'Zoom 2×'});
 /* fast reader for the band around the red line: Code 128 only, horizontal scan lines only */
@@ -1463,7 +1622,7 @@ async function camTick(slot){
       c.getContext('2d',{willReadFrequently:true}).drawImage(v,g.x,g.y,g.w,g.h,0,0,c.width,c.height);
       let r=ZW.length?await workerScan(slot,c,'strip'):null;
       codes=r||await detectStrip(c);
-      if(!codes.length&&++camMiss%6===0){        // now and then look at the whole picture too (QR codes, labels held sideways)
+      if(!codes.length&&(camMode==='connect'||++camMiss%6===0)){        // now and then look at the whole picture too (QR codes, labels held sideways)
         const c2=cv(slot,'f'),s2=Math.min(1,1000/Math.max(W,H));
         c2.width=Math.round(W*s2);c2.height=Math.round(H*s2);c2.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c2.width,c2.height);
         r=ZW.length?await workerScan(slot,c2,'full'):null;codes=r||await detectZbar(c2);
@@ -1473,6 +1632,7 @@ async function camTick(slot){
   window.__t=window.__t||{n:0,ms:0};window.__t.n++;window.__t.ms+=performance.now()-__t0;
   if(!camOn)return;
   const now=Date.now();let handled=false;
+  if(camMode==='connect'){for(const raw of codes){if(tryConnect(raw,true)){closeCam();return}}setTimeout(()=>camTick(slot),60);return}
   for(const raw of codes){
     const p=parseGS1(raw);
     if(p&&p.weight){
@@ -1508,6 +1668,137 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
     if(!hadSW)return;const b=document.getElementById('updBar');if(b)b.hidden=false});
 }
 document.getElementById('updBtn').addEventListener('click',()=>{saveNow();location.reload()});
+
+/* =========================================================
+   SHARED LOADS FOR EVERY PHONE — Ramarc's Google helper (Apps Script + Google Sheet)
+   Same interface the app already uses for shared loads: doc().set/update/onSnapshot,
+   collection().where().orderBy().limit().onSnapshot. Reads by polling every few seconds.
+   ========================================================= */
+const HELPER_RE=/^https:\/\/script\.google(usercontent)?\.com\/macros\/s\/[A-Za-z0-9_-]{20,}\/exec/;
+function helperUrl(){const c=ls.get('-conn',null);return c&&c.url&&HELPER_RE.test(c.url)?c.url:null}
+async function helperCall(url,params,post){
+  if(navigator.onLine===false)throw {code:'unavailable'};
+  let r;
+  try{r=post?await fetch(url,{method:'POST',body:JSON.stringify(params),redirect:'follow'})
+            :await fetch(url+'?'+new URLSearchParams(params),{redirect:'follow',cache:'no-store'})}
+  catch(e){throw {code:'unavailable',msg:String(e&&e.message||e)}}
+  if(!r.ok)throw {code:(r.status>=500||r.status===429)?'unavailable':'permission_denied',msg:'HTTP '+r.status};
+  let j;try{j=await r.json()}catch(e){throw {code:'permission_denied',msg:'not the helper (check Who has access: Anyone)'}}
+  if(!j.ok)throw {code:j.code||'internal',msg:j.msg||''};
+  return j;
+}
+function makeSheetDB(url){
+  const cache=new Map(),pend=new Map(),docL=[],colL=[],polledLoad=new Set(),psince={};
+  let since=0,pollT=null,polling=false,metaPolled=false;
+  try{const m=ls.get('-sdbmeta',null);if(m&&m.docs)for(const [k,v] of m.docs)cache.set(k,v)}catch(e){}
+  const clone=o=>o==null?o:JSON.parse(JSON.stringify(o));
+  const depth=p=>p.split('/').length;
+  function snapDoc(p){const c=cache.get(p);return {id:p.split('/').pop(),exists:!!c,data:()=>c?clone(c.d):undefined,metadata:{hasPendingWrites:(pend.get(p)||0)>0,fromCache:!metaPolled}}}
+  function runCol(l){
+    let docs=[...cache.keys()].filter(k=>k.startsWith(l.path+'/')&&depth(k)===depth(l.path)+1).map(snapDoc);
+    docs=docs.filter(d=>l.f.every(([f,op,v])=>op!=='=='||(d.data()||{})[f]===v));
+    if(l.o)docs.sort((a,b)=>{const x=(a.data()||{})[l.o[0]]||0,y=(b.data()||{})[l.o[0]]||0;return (x>y?1:x<y?-1:0)*(l.o[1]==='desc'?-1:1)});
+    docs=docs.slice(0,l.n);
+    const fromCache=l.load?!polledLoad.has(l.load):!metaPolled;
+    return {docs,size:docs.length,empty:!docs.length,metadata:{fromCache,hasPendingWrites:false}};
+  }
+  function fire(changed,load,first){
+    for(const l of docL.slice())if(changed.has(l.p))try{l.next(snapDoc(l.p))}catch(e){}
+    for(const l of colL.slice()){
+      const hit=[...changed].some(k=>k.startsWith(l.path+'/'));
+      if(hit||(l.load&&l.load===load&&!l.got)||(!l.load&&first&&!l.got)){l.got=true;try{l.next(runCol(l))}catch(e){}}
+    }
+  }
+  function persist(){ls.set('-sdbmeta',{docs:[...cache.entries()].filter(([k])=>depth(k)===2)})}
+  function schedule(ms){clearTimeout(pollT);if(!docL.length&&!colL.length)return;pollT=setTimeout(poll,ms!=null?ms:(document.hidden?30000:(colL.some(l=>l.load)?3500:6000)))}
+  async function poll(){
+    pollT=null;if(polling)return;
+    if(document.hidden||navigator.onLine===false){schedule();return}
+    polling=true;
+    try{
+      const load=(colL.find(l=>l.load)||{}).load||'';
+      const j=await helperCall(url,{op:'poll',since,load,psince:load?(psince[load]||0):0});
+      const changed=new Set();
+      for(const x of j.docs||[]){if((pend.get(x.p)||0)>0)continue;const c=cache.get(x.p);if(!c||c.u!==x.u){cache.set(x.p,{d:x.d,u:x.u});changed.add(x.p)}}
+      const first=!metaPolled;since=j.now;metaPolled=true;if(load){psince[load]=j.now;polledLoad.add(load)}
+      if(changed.size||first)persist();
+      fire(changed,load,first);
+      helperOk(true);
+    }catch(e){helperOk(false,e)}
+    polling=false;schedule();
+  }
+  async function write(op,p,d){
+    const prev=cache.get(p);
+    if(op==='set'||prev){cache.set(p,{d:op==='update'?Object.assign({},prev.d,clone(d)):clone(d),u:prev?prev.u:0});fire(new Set([p]),null,false)}   // show it right away
+    pend.set(p,(pend.get(p)||0)+1);
+    try{const j=await helperCall(url,{op,p,d},true);const c=cache.get(p);
+      if(c)c.u=op==='set'?j.u:-1;          // after an update, take the sheet's merged copy on the next read
+      if(depth(p)===2)persist();helperOk(true);if(op==='update')schedule(400);return}
+    catch(e){throw e}
+    finally{pend.set(p,(pend.get(p)||1)-1);if(!pend.get(p))pend.delete(p)}
+  }
+  function doc(p){return {id:p.split('/').pop(),path:p,
+    set:d=>write('set',p,d),update:d=>write('update',p,d),
+    onSnapshot:(next,err)=>{const l={p,next};docL.push(l);if(cache.has(p))setTimeout(()=>next(snapDoc(p)),0);schedule(50);return()=>{const i=docL.indexOf(l);if(i>=0)docL.splice(i,1)}}}}
+  function collection(path,f=[],o=null,n=1000){
+    const m=path.match(/^loads\/([^/]+)\/parts$/);
+    return {path,where:(a,op,v)=>collection(path,f.concat([[a,op,v]]),o,n),orderBy:(a,dir)=>collection(path,f,[a,dir||'asc'],n),limit:k=>collection(path,f,o,k),
+      doc:id=>doc(path+'/'+id),
+      onSnapshot:(next,err)=>{const l={path,f,o,n,next,load:m?m[1]:null,got:false};colL.push(l);
+        if(!l.load&&cache.size)setTimeout(()=>next(runCol(l)),0);
+        schedule(50);return()=>{const i=colL.indexOf(l);if(i>=0)colL.splice(i,1)}}}}
+  addEventListener('online',()=>schedule(300));document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule(300)});
+  return {doc,collection,poll:()=>schedule(0),_cache:cache};
+}
+let helperState=null;
+function helperOk(ok,e){const was=helperState;helperState=ok?'ok':(e&&e.code==='unavailable'?'offline':'bad');if(was!==helperState)renderConnect()}
+window.__sheetDB=()=>{const u=helperUrl();return u?makeSheetDB(u):null};
+if(location.hostname==='localhost')window.__cacheOf=id=>DB&&DB._cache?JSON.stringify(DB._cache.get('loads/'+id)).slice(0,160):null;
+if(location.hostname==='localhost')window.__dbg=()=>({DONE_REMOTE,OPEN_REMOTE,S,DRAFTS:Object.keys(DRAFTS),DONE:DONE.map(d=>d.load&&d.load.id),keys:DB&&DB._cache?[...DB._cache.keys()]:null,cur:DB&&DB._cache&&S.load?JSON.stringify(DB._cache.get('loads/'+S.load.id)).slice(0,200):null,sid:S.load&&S.load.id});
+
+/* ---- connect this phone to the shared loads ---- */
+function tryConnect(raw,fromCam){
+  const m=String(raw||'').trim().match(/https:\/\/script\.google(usercontent)?\.com\/macros\/s\/[A-Za-z0-9_-]{20,}\/exec/);
+  if(!m){if(!fromCam)toast('That is not the Ramarc helper link. It starts with https://script.google.com/macros/s/ and ends with /exec','bad');return false}
+  const url=m[0];
+  $('connMsg').textContent='Checking the link…';
+  helperCall(url,{op:'ping'}).then(()=>{ls.set('-conn',{url,at:Date.now()});saveNow();beep('ok');toast('Connected. Drafts from every phone will show here.','ok');setTimeout(()=>location.reload(),900)})
+    .catch(e=>{beep('bad');$('connMsg').textContent=e.code==='unavailable'?'No signal right now — try again where there is Wi-Fi or signal.':'That link did not answer like the helper ('+(e.msg||e.code)+').'});
+  return true;
+}
+function renderConnect(){
+  const box=$('connBox');if(!box)return;const u=helperUrl();
+  $('connOff').hidden=!!u;$('connOn').hidden=!u;
+  if(u)$('connState').textContent=helperState==='bad'?'Connected, but the helper is not answering correctly. Ask Jesus.':helperState==='offline'?'Connected — no signal right now. Scans save on this phone and send later.':'Connected — drafts and completed sheets are shared with every phone.';
+}
+let qrLib=null;
+function loadQr(){if(window.qrcode)return Promise.resolve(true);if(qrLib)return qrLib;qrLib=new Promise(res=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';sc.onload=()=>res(true);sc.onerror=()=>{qrLib=null;res(false)};document.head.appendChild(sc)});return qrLib}
+async function showQr(){const u=helperUrl();if(!u)return;const box=$('qrBox');box.hidden=!box.hidden;if(box.hidden)return;
+  if(!(await loadQr())){$('qrImg').textContent='Could not load the QR maker (no signal).';return}
+  const q=qrcode(0,'M');q.addData(u);q.make();$('qrImg').innerHTML=q.createSvgTag({cellSize:5,margin:3,scalable:true});const sv=$('qrImg').querySelector('svg');if(sv){sv.style.width='240px';sv.style.height='240px';sv.style.background='#fff'}}
+$('connScan').addEventListener('click',()=>{camMode='connect';openCam().then(()=>{if(camOn)camSay('Scan the connect QR code','Point at the QR code on the other phone or the sheet.')})});
+$('connGo').addEventListener('click',()=>tryConnect($('connInput').value,false));
+$('connQr').addEventListener('click',showQr);
+$('connOffBtn').addEventListener('click',e=>{const b=e.currentTarget;if(!b.classList.contains('danger')){b.classList.add('danger');b.textContent='Tap again to disconnect this phone';setTimeout(()=>{b.classList.remove('danger');b.textContent='Disconnect'},4000);return}
+  ls.set('-conn',null);ls.set('-sdbmeta',null);saveNow();location.reload()});
+/* link like ...ramarc-scanner/#connect=<helper url> (works when the link is opened in the same browser the app uses) */
+(function(){const h=location.hash||'';const i=h.indexOf('connect=');if(i>=0){const raw=decodeURIComponent(h.slice(i+8));history.replaceState(null,'',location.pathname);if(!helperUrl())setTimeout(()=>tryConnect(raw,false),400)}})();
+renderConnect();
+
+/* ---- one-tap email through the helper (to the list on the shared sheet's Settings tab) ---- */
+let mailTo=null;
+async function loadMailTo(){const u=helperUrl();if(!u)return;try{const j=await helperCall(u,{op:'config'});mailTo=j.recipients||[];}catch(e){}
+  $('oneTapBtn').hidden=!u;$('oneTapTo').textContent=mailTo&&mailTo.length?'Goes to: '+mailTo.join(', '):(mailTo?'No email addresses yet — add them on the Settings tab of the shared Google Sheet.':'')}
+$('oneTapBtn').addEventListener('click',async e=>{
+  const b=e.currentTarget,u=helperUrl();if(!u||!S.load)return;const blob=makePdf();if(!blob)return;const i=S.load.info;
+  const subject=[(isCombo()?'Combo Weight Sheet':'Weight Sheet'),i.product,i.vendor,i.bol?'BOL '+i.bol:'',i.lot?'LOT '+i.lot:'',fmtDate(i.date)].filter(Boolean).join(' - ');
+  const body='Attached is the '+(isCombo()?'combo ':'')+'weight sheet for '+(i.product||'this load')+' from '+(i.vendor||'the vendor')+': '+summaryLine()+'.'+(expectedLine()?'\n'+expectedLine():'')+(recvLine()?'\n'+recvLine():'')+'\nWeighed by: '+weighedBy();
+  b.disabled=true;const old=b.textContent;b.textContent='Sending…';
+  try{const pdf=await b64(blob);const j=await helperCall(u,{op:'mail',subject,body,filename:safeName()+'.pdf',pdf},true);
+    S.exported=true;saveLocal();beep('ok');toast('Sent to '+(j.to||[]).join(', ')+(j.drive?'. A copy is saved in Google Drive.':'.'),'ok')}
+  catch(err){beep('bad');toast(err.code==='unavailable'?'No signal — the email was not sent. Try again where there is signal, or use Email PDF (Gmail / Mail).':'Not sent: '+(err.msg||err.code),'bad')}
+  finally{b.disabled=false;b.textContent=old}});
+loadMailTo();
 
 /* ---- boot ---- */
 recompute();
