@@ -6,8 +6,8 @@
  *
  * ONE-TIME SETUP (about 5 minutes, on a computer):
  *  1. Go to script.google.com and click "New project". Delete what is there and paste this whole file.
- *  2. Click Save, choose "setup" in the function menu at the top, click Run, and allow the permissions.
- *     That creates the Google Sheet "Ramarc Weight Scanner - Shared Loads" in your Drive.
+ *  2. Click Save. (Optional: choose "setup" in the function menu at the top and click Run. If you skip it,
+ *     the Google Sheet "Ramarc Weight Scanner - Shared Loads" is created the first time a phone connects.)
  *  3. Click Deploy > New deployment > gear icon > Web app.
  *       Execute as: Me      Who has access: Anyone
  *     Click Deploy and copy the "Web app URL" (ends in /exec).
@@ -69,7 +69,7 @@ function ensureTabs_(ss) {
 
 function book_() {
   var id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-  if (!id) throw new Error('not_setup');
+  if (!id) { setup(); id = PropertiesService.getScriptProperties().getProperty('SHEET_ID'); }   // first use creates the sheet, even if setup was never run
   var ss = SpreadsheetApp.openById(id);
   return ensureTabs_(ss);
 }
