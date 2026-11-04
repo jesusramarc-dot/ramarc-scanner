@@ -1404,7 +1404,9 @@ async function openCam(){
   $('torchBtn').hidden=!caps.torch;
   try{if(caps.focusMode&&caps.focusMode.includes('continuous'))await tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
   camZoom=caps.zoom||null;$('zoomBtn').hidden=!(camZoom&&camZoom.max>=1.8);zoomOn=false;$('zoomBtn').textContent='Zoom 2×';
-  camOn=true;camMiss=0;camSay('Point at the label barcode','Put the red line across the long barcode. It beeps when a box is added.');camTick();
+  camOn=true;camMiss=0;camSay('Point at the label barcode','Put the red line across the long barcode. It beeps when a box is added.');
+  await Promise.race([startWorkers(),new Promise(r=>setTimeout(r,1500))]);if(!camOn)return;
+  camTick(0);if(ZW.length>1)setTimeout(()=>camTick(1),40);
 }
 function closeCam(){camOn=false;if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camVideo').srcObject=null;CAM.hidden=true;document.body.style.overflow=R.hidden?'':'hidden';render()}
 let camZoom=null,zoomOn=false,camMiss=0,stripScanner=null,stripCanvas=null;
@@ -1420,31 +1422,56 @@ function guideRect(v,W,H){const vr=v.getBoundingClientRect(),gr=$('camGuide').ge
   let x=(gr.left-vr.left-ox)/k,y=(gr.top-vr.top-oy)/k,w=gr.width/k,h=gr.height/k;const padY=h*.35;y-=padY;h+=2*padY;const padX=w*.04;x-=padX;w+=2*padX;
   x=Math.max(0,x);y=Math.max(0,y);w=Math.min(W-x,w);h=Math.min(H-y,h);return {x,y,w,h}}
 let torch=false;$('torchBtn').addEventListener('click',async()=>{if(!camStream)return;torch=!torch;try{await camStream.getVideoTracks()[0].applyConstraints({advanced:[{torch}]})}catch(e){}$('torchBtn').textContent=torch?'Flashlight off':'Flashlight'});
-async function camTick(){
+/* background readers: barcode decoding runs off the main thread so the camera picture stays smooth */
+const ZB_URL='https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/inlined/index.js';
+let ZW=[],zwReady=null,zwId=0;const zwCb=new Map();
+function startWorkers(){
+  if(zwReady)return zwReady;
+  zwReady=(async()=>{try{
+    if(!window.Worker)return false;
+    const src=await (await fetch(ZB_URL)).text();
+    const code=src+'\n;let strip=null;onmessage=async e=>{const d=e.data;let codes=[];try{const Z=zbarWasm;let sc;'
+      +'if(d.mode==="strip"){if(!strip){strip=await Z.ZBarScanner.create();const T=Z.ZBarSymbolType,C=Z.ZBarConfigType;strip.setConfig(T.ZBAR_NONE,C.ZBAR_CFG_ENABLE,0);strip.setConfig(T.ZBAR_CODE128,C.ZBAR_CFG_ENABLE,1);strip.setConfig(T.ZBAR_NONE,C.ZBAR_CFG_Y_DENSITY,0);strip.setConfig(T.ZBAR_NONE,C.ZBAR_CFG_X_DENSITY,2)}sc=strip}'
+      +'codes=(await Z.scanRGBABuffer(d.buf,d.w,d.h,sc)).map(s=>s.decode())}catch(err){}postMessage({id:d.id,codes})}';
+    const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
+    const n=Math.max(1,Math.min(2,(navigator.hardwareConcurrency||2)-1));
+    for(let i=0;i<n;i++){const w=new Worker(url);w.onmessage=e=>{const cb=zwCb.get(e.data.id);if(cb){zwCb.delete(e.data.id);cb(e.data.codes)}};ZW.push(w)}
+    return true}catch(e){ZW=[];return false}})();
+  return zwReady;
+}
+function workerScan(slot,c,mode){return new Promise(res=>{
+  const id=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height);const n=++zwId;
+  const t=setTimeout(()=>{zwCb.delete(n);res(null)},4000);zwCb.set(n,codes=>{clearTimeout(t);res(codes)});
+  ZW[slot%ZW.length].postMessage({id:n,mode,buf:id.data.buffer,w:c.width,h:c.height},[id.data.buffer])})}
+const camCv=[];function cv(slot,k){const key=slot+k;return camCv[key]||(camCv[key]=document.createElement('canvas'))}
+async function camTick(slot){
+  slot=slot||0;
   if(!camOn)return;
   const v=$('camVideo');
-  if(comboOpen||document.hidden||v.readyState<2){setTimeout(camTick,250);return}
-  const W=v.videoWidth,H=v.videoHeight;if(!W){setTimeout(camTick,200);return}
+  if(comboOpen||document.hidden||v.readyState<2){setTimeout(()=>camTick(slot),250);return}
+  const W=v.videoWidth,H=v.videoHeight;if(!W){setTimeout(()=>camTick(slot),200);return}
   let codes=[];const __t0=performance.now();
   try{
-    if('BarcodeDetector' in window){            // Android Chrome: built-in reader is fast on the whole picture
-      const sc=Math.min(1,1600/Math.max(W,H));camCanvas=camCanvas||document.createElement('canvas');
-      camCanvas.width=Math.round(W*sc);camCanvas.height=Math.round(H*sc);camCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,camCanvas.width,camCanvas.height);
-      codes=await detectNative(camCanvas);
+    if('BarcodeDetector' in window&&slot===0){  // Android Chrome: built-in reader is fast on the whole picture
+      const c=cv(slot,'f'),sc=Math.min(1,1600/Math.max(W,H));
+      c.width=Math.round(W*sc);c.height=Math.round(H*sc);c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c.width,c.height);
+      codes=await detectNative(c);
     }
     if(!codes.length){                          // iPhone (and backup): read only the band around the red line, full sharpness
-      const g=guideRect(v,W,H);const sc=Math.min(1,1400/g.w);stripCanvas=stripCanvas||document.createElement('canvas');
-      stripCanvas.width=Math.max(1,Math.round(g.w*sc));stripCanvas.height=Math.max(1,Math.round(g.h*sc));
-      stripCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,g.x,g.y,g.w,g.h,0,0,stripCanvas.width,stripCanvas.height);
-      codes=await detectStrip(stripCanvas);
+      const g=guideRect(v,W,H);const sc=Math.min(1,1400/g.w);const c=cv(slot,'s');
+      c.width=Math.max(1,Math.round(g.w*sc));c.height=Math.max(1,Math.round(g.h*sc));
+      c.getContext('2d',{willReadFrequently:true}).drawImage(v,g.x,g.y,g.w,g.h,0,0,c.width,c.height);
+      let r=ZW.length?await workerScan(slot,c,'strip'):null;
+      codes=r||await detectStrip(c);
       if(!codes.length&&++camMiss%6===0){        // now and then look at the whole picture too (QR codes, labels held sideways)
-        const s2=Math.min(1,1000/Math.max(W,H));camCanvas=camCanvas||document.createElement('canvas');
-        camCanvas.width=Math.round(W*s2);camCanvas.height=Math.round(H*s2);camCanvas.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,camCanvas.width,camCanvas.height);
-        codes=await detectZbar(camCanvas);
+        const c2=cv(slot,'f'),s2=Math.min(1,1000/Math.max(W,H));
+        c2.width=Math.round(W*s2);c2.height=Math.round(H*s2);c2.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c2.width,c2.height);
+        r=ZW.length?await workerScan(slot,c2,'full'):null;codes=r||await detectZbar(c2);
       }
     }
   }catch(e){}
   window.__t=window.__t||{n:0,ms:0};window.__t.n++;window.__t.ms+=performance.now()-__t0;
+  if(!camOn)return;
   const now=Date.now();let handled=false;
   for(const raw of codes){
     const p=parseGS1(raw);
@@ -1460,8 +1487,9 @@ async function camTick(){
   }
   if(!handled&&codes.length&&!(lastHit.has('x'+codes[0])&&now-lastHit.get('x'+codes[0])<2500)){lastHit.set('x'+codes[0],now);camSay('That barcode has no weight','Aim at the long GS1 barcode (or QR code) on the label.','miss')}
   if(handled)camMiss=0;
-  setTimeout(camTick,handled?350:15);
+  setTimeout(()=>camTick(slot),handled?350:(ZW.length?0:15));
 }
+setTimeout(()=>{startWorkers()},2500);
 $('camBtn').addEventListener('click',openCam);$('rCamBtn').addEventListener('click',()=>{openCam()});
 $('camDone').addEventListener('click',closeCam);
 $('camType').addEventListener('click',()=>{if(isCombo()){manualAdd(0,'lb','');return}closeCam();$('manualForm').hidden=false;$('m_w').focus()});
